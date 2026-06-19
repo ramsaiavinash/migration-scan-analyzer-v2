@@ -1,11 +1,83 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ScanAnalyzer v2</title>
+<title>ScanAnalyzer v2 — Migration Scan Analyzer</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
 </head>
 <body>
-<h1>ScanAnalyzer v2 - Setting up...</h1>
+<h1>ScanAnalyzer v2</h1>
+<p>Loading...</p>
+<script>
+// SharePoint REST API - No Premium connectors needed!
+const SP_SITE = 'https://cognizantonline-my.sharepoint.com/personal/2389039_cognizant_com';
+const SP_LIST = 'ScanAnalyzerHistory';
+const SP_FILES_FOLDER = '/Documents/ScanAnalyzerFiles';
+
+// Get history from SharePoint REST API directly
+async function getSharedHistorySP(){
+  try{
+    var url = SP_SITE + "/_api/web/lists/getbytitle('" + SP_LIST + "')/items?$select=ID,Title,FileName,TotalUsers,TotalSize,TotalFiles,TotalItems,UploadedBy,Created&$orderby=Created desc&$top=100";
+    var r = await fetch(url, {
+      headers: {
+        'Accept': 'application/json;odata=verbose',
+        'Content-Type': 'application/json;odata=verbose'
+      },
+      credentials: 'include'
+    });
+    if(r.ok){
+      var data = await r.json();
+      return data.d.results.map(function(item){
+        return {
+          id: item.ID,
+          waveName: item.Title || '',
+          fileName: item.FileName || '',
+          date: item.Created ? new Date(item.Created).toLocaleString() : '',
+          totalUsers: parseInt(item.TotalUsers) || 0,
+          totalSize: item.TotalSize || '0 GB',
+          totalFiles: parseInt(item.TotalFiles) || 0,
+          totalItems: parseInt(item.TotalItems) || 0,
+          uploadedBy: item.UploadedBy || '',
+          spFileName: item.Title && item.FileName ? item.Title.replace(/[^a-z0-9]/gi,'_')+'_'+item.FileName : null,
+          source: 'sharepoint'
+        };
+      });
+    }
+    return null;
+  }catch(e){
+    console.log('SP REST API failed:', e.message);
+    return null;
+  }
+}
+
+// Get file from SharePoint REST API directly
+async function getFileFromSP(spFileName){
+  try{
+    var url = SP_SITE + "/_api/web/GetFileByServerRelativeUrl('" + SP_FILES_FOLDER + "/" + encodeURIComponent(spFileName) + "')/$value";
+    var r = await fetch(url, {
+      credentials: 'include'
+    });
+    if(r.ok){
+      var blob = await r.blob();
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onload = function(){ resolve(reader.result); };
+        reader.readAsText(blob);
+      });
+    }
+    return null;
+  }catch(e){
+    console.log('SP file fetch failed:', e.message);
+    return null;
+  }
+}
+
+// Test
+getSharedHistorySP().then(function(items){
+  document.querySelector('p').textContent = items ? 'SP Connected! Items: ' + items.length : 'SP Connection failed';
+  console.log('SP items:', items);
+});
+</script>
 </body>
 </html>
